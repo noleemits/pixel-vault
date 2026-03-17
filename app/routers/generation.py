@@ -1,0 +1,111 @@
+import os
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models import Prompt, Batch, Image
+from app.schemas import GenerateBatchRequest, GenerateBatchResponse, BatchOut
+from app.services.fal_client import FalClient
+from app.services.image_processor import ImageProcessor
+from app.services.obsidian_logger import ObsidianLogger
+from app.config import settings
+
+router = APIRouter(tags=["generation"])
+
+async def _run_generation(batch_id: int, prompt_text: str, industry: str, style: str, ratio: str, count: int):
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        batch = db.get(Batch, batch_id)
+        batch.status = "generating"
+        db.commit()
+
+        fal = FalClient(api_key=settings.fal_key)
+        processor = ImageProcessor(storage_path=settings.storage_path)
+
+        results = await fal.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
+
+        ratio_label = ratio.replace(":", "x")
+        existing_count = db.query(Image).filter(Image.industry == industry, Image.style == style).count()
+
+        for i, result in enumerate(results):
+            number = existing_count + i + 1
+            saved = await processor.download_and_save(result["url"], industry, style, number, ratio_label)
+            image = Image(
+                filename=saved["filename"],
+                filepath=saved["filepath"],
+                industry=industry,
+                style=style,
+                ratio=ratio,
+                prompt_id=batch.prompt_id,
+                batch_id=batch.id,
+                status="pending",
+                width=saved["width"],
+                height=saved["height"],
+                file_size=saved["file_size"],
+            )
+            db.add(image)
+
+        batch.status = "completed"
+        batch.completed_at = datetime.now(timezone.utc)
+        db.commit()
+
+        prompt = db.get(Prompt, batch.prompt_id)
+        if settings.obsidian_api_key:
+            obsidian = ObsidianLogger(api_url=settings.obsidian_api_url, api_key=settings.obsidian_api_key)
+            await obsidian.log_batch(
+                batch_id=batch.id,
+                industry=industry,
+                prompt_name=prompt.name,
+                prompt_text=prompt_text,
+                image_count=count,
+                status="completed",
+            )
+
+    except Exception as e:
+        batch = db.get(Batch, batch_id)
+        if batch:
+            batch.status = "failed"
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+@router.post("/generate", response_model=GenerateBatchResponse)
+async def generate_batch(body: GenerateBatchRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    prompt = db.get(Prompt, body.prompt_id)
+    if not prompt:
+        raise HTTPException(404, "Prompt not found")
+
+    batch = Batch(prompt_id=prompt.id, image_count=body.count, ratio=body.ratio, status="pending")
+    db.add(batch)
+    db.commit()
+    db.refresh(batch)
+
+    style = prompt.name.split("\u2014")[-1].strip().lower().split()[0] if "\u2014" in prompt.name else "general"
+
+    background_tasks.add_task(
+        _run_generation,
+        batch_id=batch.id,
+        prompt_text=prompt.prompt_text,
+        industry=prompt.industry,
+        style=style,
+        ratio=body.ratio,
+        count=body.count,
+    )
+
+    return GenerateBatchResponse(batch_id=batch.id, status="pending", message=f"Generating {body.count} images for '{prompt.name}'")
+
+@router.get("/batches", response_model=list[BatchOut])
+def list_batches(status: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(Batch).order_by(Batch.id.desc())
+    if status:
+        q = q.filter(Batch.status == status)
+    return q.all()
+
+@router.get("/batches/{batch_id}", response_model=BatchOut)
+def get_batch(batch_id: int, db: Session = Depends(get_db)):
+    batch = db.get(Batch, batch_id)
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+    return batch
