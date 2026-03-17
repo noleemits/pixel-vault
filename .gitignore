@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .env
 pixelvault.db
+test.db
 storage/images/*
 !storage/images/.gitkeep
 .pytest_cache/
