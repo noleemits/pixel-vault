@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+pixelvault.db
+storage/images/*
+!storage/images/.gitkeep
+.pytest_cache/
