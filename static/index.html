@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PixelVault — Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- ═══ TOP BAR ═══ -->
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="topbar__icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="2" y="2" width="10" height="10" rx="2" fill="#22d3ee" opacity="0.9"/>
+          <rect x="16" y="2" width="10" height="10" rx="2" fill="#22d3ee" opacity="0.5"/>
+          <rect x="2" y="16" width="10" height="10" rx="2" fill="#22d3ee" opacity="0.5"/>
+          <rect x="16" y="16" width="10" height="10" rx="2" fill="#22d3ee" opacity="0.2"/>
+        </svg>
+      </div>
+      <h1 class="topbar__title">PixelVault</h1>
+      <span class="topbar__version">v0.1.0</span>
+    </div>
+    <nav class="topbar__nav">
+      <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</button>
+      <button class="nav-btn" data-view="prompts" onclick="switchView('prompts')">Prompts</button>
+      <button class="nav-btn" data-view="review" onclick="switchView('review')">Review</button>
+      <button class="nav-btn" data-view="batches" onclick="switchView('batches')">Batches</button>
+    </nav>
+    <div class="topbar__status">
+      <span class="status-dot" id="apiStatus"></span>
+      <span class="mono-sm" id="apiStatusText">Connecting...</span>
+    </div>
+  </header>
+
+  <!-- ═══ DASHBOARD VIEW ═══ -->
+  <main class="view active" id="view-dashboard">
+
+    <!-- Stats Cards -->
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card__value" id="statTotal">—</div>
+        <div class="stat-card__label">Total Images</div>
+        <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--total" id="barTotal"></div></div>
+      </div>
+      <div class="stat-card stat-card--approved">
+        <div class="stat-card__value" id="statApproved">—</div>
+        <div class="stat-card__label">Approved</div>
+        <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--approved" id="barApproved"></div></div>
+      </div>
+      <div class="stat-card stat-card--pending">
+        <div class="stat-card__value" id="statPending">—</div>
+        <div class="stat-card__label">Pending Review</div>
+        <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--pending" id="barPending"></div></div>
+      </div>
+      <div class="stat-card stat-card--rejected">
+        <div class="stat-card__value" id="statRejected">—</div>
+        <div class="stat-card__label">Rejected</div>
+        <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--rejected" id="barRejected"></div></div>
+      </div>
+    </section>
+
+    <!-- Industry Breakdown -->
+    <section class="panel">
+      <h2 class="panel__title">Industry Breakdown</h2>
+      <div class="industry-grid" id="industryGrid"></div>
+    </section>
+
+    <!-- Recent Batches -->
+    <section class="panel">
+      <h2 class="panel__title">Recent Batches</h2>
+      <div class="batch-table" id="recentBatches">
+        <div class="batch-table__empty">No batches yet — go to Prompts to generate your first batch.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ PROMPTS VIEW ═══ -->
+  <main class="view" id="view-prompts">
+    <section class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title">Master Prompts</h2>
+        <div class="industry-filter">
+          <button class="filter-btn active" onclick="filterIndustry(null, this)">All</button>
+          <button class="filter-btn" onclick="filterIndustry('healthcare', this)">Healthcare</button>
+          <button class="filter-btn" onclick="filterIndustry('real_estate', this)">Real Estate</button>
+          <button class="filter-btn" onclick="filterIndustry('food', this)">Food</button>
+          <button class="filter-btn" onclick="filterIndustry('legal_finance', this)">Legal & Finance</button>
+          <button class="filter-btn" onclick="filterIndustry('fitness', this)">Fitness</button>
+          <button class="filter-btn" onclick="filterIndustry('ecommerce', this)">E-commerce</button>
+        </div>
+      </div>
+      <div class="prompts-grid" id="promptsGrid"></div>
+    </section>
+  </main>
+
+  <!-- ═══ REVIEW VIEW ═══ -->
+  <main class="view" id="view-review">
+    <section class="panel">
+      <div class="panel__header">
+        <h2 class="panel__title">Image Review</h2>
+        <div class="review-filters">
+          <button class="filter-btn active" onclick="filterReviewStatus(null, this)">All</button>
+          <button class="filter-btn" onclick="filterReviewStatus('pending', this)">Pending</button>
+          <button class="filter-btn" onclick="filterReviewStatus('approved', this)">Approved</button>
+          <button class="filter-btn" onclick="filterReviewStatus('rejected', this)">Rejected</button>
+        </div>
+      </div>
+      <div class="review-grid" id="reviewGrid">
+        <div class="batch-table__empty">No images yet — generate a batch first.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ BATCHES VIEW ═══ -->
+  <main class="view" id="view-batches">
+    <section class="panel">
+      <h2 class="panel__title">Batch History</h2>
+      <div class="batch-list" id="batchList">
+        <div class="batch-table__empty">No batches yet.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ GENERATE MODAL ═══ -->
+  <div class="modal-overlay" id="generateModal" onclick="closeModal(event)">
+    <div class="modal">
+      <div class="modal__header">
+        <h3 class="modal__title" id="modalPromptName"></h3>
+        <button class="modal__close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal__body">
+        <div class="modal__prompt-text" id="modalPromptText"></div>
+        <div class="modal__controls">
+          <label class="control-group">
+            <span class="control-label">Images</span>
+            <div class="count-selector">
+              <button class="count-btn" onclick="adjustCount(-1)">−</button>
+              <span class="count-value" id="genCount">3</span>
+              <button class="count-btn" onclick="adjustCount(1)">+</button>
+            </div>
+          </label>
+          <label class="control-group">
+            <span class="control-label">Ratio</span>
+            <select class="control-select" id="genRatio"></select>
+          </label>
+          <div class="control-group">
+            <span class="control-label">Est. Cost</span>
+            <span class="cost-value" id="genCost">$0.12</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn--primary" id="btnGenerate" onclick="submitGenerate()">
+          <span class="btn__text">Generate Batch</span>
+          <span class="btn__loader" style="display:none"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ IMAGE LIGHTBOX ═══ -->
+  <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lightbox">
+      <button class="lightbox__close" onclick="closeLightbox()">&times;</button>
+      <img class="lightbox__img" id="lightboxImg" src="" alt="">
+      <div class="lightbox__info">
+        <div class="lightbox__meta" id="lightboxMeta"></div>
+        <div class="lightbox__actions" id="lightboxActions"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TOAST ═══ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

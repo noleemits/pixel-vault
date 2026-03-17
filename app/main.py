@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.database import Base, engine
 from app.routers import prompts, images, generation, tags
 from app.config import settings
@@ -19,8 +20,13 @@ app.include_router(generation.router, prefix="/api/v1")
 app.include_router(tags.router, prefix="/api/v1")
 
 os.makedirs(settings.storage_path, exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/storage", StaticFiles(directory=settings.storage_path), name="storage")
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/")
+def dashboard():
+    return FileResponse("static/index.html")
