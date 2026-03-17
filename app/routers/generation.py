@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Prompt, Batch, Image
 from app.schemas import GenerateBatchRequest, GenerateBatchResponse, BatchOut
-from app.services.fal_client import FalClient
+from app.services.imagen_client import ImagenClient
 from app.services.image_processor import ImageProcessor
 from app.services.obsidian_logger import ObsidianLogger
 from app.config import settings
@@ -20,17 +20,17 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
         batch.status = "generating"
         db.commit()
 
-        fal = FalClient(api_key=settings.fal_key)
+        imagen = ImagenClient(api_key=settings.google_api_key)
         processor = ImageProcessor(storage_path=settings.storage_path)
 
-        results = await fal.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
+        results = await imagen.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
 
         ratio_label = ratio.replace(":", "x")
         existing_count = db.query(Image).filter(Image.industry == industry, Image.style == style).count()
 
         for i, result in enumerate(results):
             number = existing_count + i + 1
-            saved = await processor.download_and_save(result["url"], industry, style, number, ratio_label)
+            saved = processor.save_from_bytes(result["image_bytes"], industry, style, number, ratio_label)
             image = Image(
                 filename=saved["filename"],
                 filepath=saved["filepath"],

@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build PixelVault — an AI image bank platform that generates images via FLUX 1.1 Pro, serves them via REST API, integrates with WordPress plugins via a PHP bridge, and logs all work to Obsidian.
+**Goal:** Build PixelVault — an AI image bank platform that generates images via Google Imagen 4, serves them via REST API, integrates with WordPress plugins via a PHP bridge, and logs all work to Obsidian.
 
-**Architecture:** FastAPI backend with SQLite (upgradeable to PostgreSQL) for metadata. fal.ai client for FLUX 1.1 Pro image generation. Local file storage for images (`/storage/images/`). WordPress PHP bridge class using `wp_remote_*` functions. Obsidian integration via its Local REST API for work logging. Small-batch workflow: generate 3-5 images → manual review → prompt refinement → scale up.
+**Architecture:** FastAPI backend with SQLite (upgradeable to PostgreSQL) for metadata. Google Imagen 4 API for image generation (switched from FLUX 1.1 Pro after first batch review showed superior quality). Local file storage for images (`/storage/images/`). WordPress PHP bridge class using `wp_remote_*` functions. Obsidian integration via its Local REST API for work logging. Small-batch workflow: generate 3-5 images → manual review → prompt refinement → scale up.
 
-**Tech Stack:** Python 3.14, FastAPI, SQLAlchemy, httpx (fal.ai calls), Pydantic, SQLite, Pillow (image processing), PHP (WordPress bridge), Obsidian Local REST API.
+**Tech Stack:** Python 3.14, FastAPI, SQLAlchemy, httpx (Google Imagen 4 API), Pydantic, SQLite, Pillow (image processing), PHP (WordPress bridge), Obsidian Local REST API.
 
 ---
 
@@ -547,7 +547,7 @@ Expected: 2 PASSED
 
 ```bash
 git add app/services/fal_client.py tests/test_fal_client.py
-git commit -m "feat: add fal.ai client for FLUX 1.1 Pro image generation"
+git commit -m "feat: add Google Imagen 4 client for image generation image generation"
 ```
 
 ---

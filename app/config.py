@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    fal_key: str = ""
+    google_api_key: str = ""
     obsidian_api_url: str = "https://127.0.0.1:27124"
     obsidian_api_key: str = ""
     pixelvault_api_key: str = ""
