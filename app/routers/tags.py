@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_sync_db as get_db
 from app.models import Tag, Image
 from app.schemas import TagOut
 

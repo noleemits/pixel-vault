@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_sync_db as get_db
 from app.models import Image, Tag, image_tags
 from app.schemas import ImageOut, ImageReview
 
@@ -32,21 +32,21 @@ def list_images(
     return q.offset((page - 1) * per_page).limit(per_page).all()
 
 @router.get("/images/{image_id}", response_model=ImageOut)
-def get_image(image_id: int, db: Session = Depends(get_db)):
+def get_image(image_id: str, db: Session = Depends(get_db)):
     image = db.get(Image, image_id)
     if not image:
         raise HTTPException(404, "Image not found")
     return image
 
 @router.get("/images/{image_id}/file")
-def get_image_file(image_id: int, db: Session = Depends(get_db)):
+def get_image_file(image_id: str, db: Session = Depends(get_db)):
     image = db.get(Image, image_id)
     if not image:
         raise HTTPException(404, "Image not found")
     return FileResponse(image.filepath, media_type="image/jpeg")
 
 @router.patch("/images/{image_id}/review", response_model=ImageOut)
-def review_image(image_id: int, body: ImageReview, db: Session = Depends(get_db)):
+def review_image(image_id: str, body: ImageReview, db: Session = Depends(get_db)):
     image = db.get(Image, image_id)
     if not image:
         raise HTTPException(404, "Image not found")

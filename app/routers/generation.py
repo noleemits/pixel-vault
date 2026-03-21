@@ -2,9 +2,10 @@ import os
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_sync_db
 from app.models import Prompt, Batch, Image
 from app.schemas import GenerateBatchRequest, GenerateBatchResponse, BatchOut
+from app.services.fal_client import FalClient, requires_hands
 from app.services.imagen_client import ImagenClient
 from app.services.image_processor import ImageProcessor
 from app.services.obsidian_logger import ObsidianLogger
@@ -20,10 +21,14 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
         batch.status = "generating"
         db.commit()
 
-        imagen = ImagenClient(api_key=settings.google_api_key)
         processor = ImageProcessor(storage_path=settings.storage_path)
 
-        results = await imagen.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
+        if requires_hands(prompt_text):
+            client = ImagenClient(api_key=settings.google_api_key)
+        else:
+            client = FalClient(api_key=settings.fal_api_key)
+
+        results = await client.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
 
         ratio_label = ratio.replace(":", "x")
         existing_count = db.query(Image).filter(Image.industry == industry, Image.style == style).count()
@@ -52,15 +57,18 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
 
         prompt = db.get(Prompt, batch.prompt_id)
         if settings.obsidian_api_key:
-            obsidian = ObsidianLogger(api_url=settings.obsidian_api_url, api_key=settings.obsidian_api_key)
-            await obsidian.log_batch(
-                batch_id=batch.id,
-                industry=industry,
-                prompt_name=prompt.name,
-                prompt_text=prompt_text,
-                image_count=count,
-                status="completed",
-            )
+            try:
+                obsidian = ObsidianLogger(api_url=settings.obsidian_api_url, api_key=settings.obsidian_api_key)
+                await obsidian.log_batch(
+                    batch_id=batch.id,
+                    industry=industry,
+                    prompt_name=prompt.name,
+                    prompt_text=prompt_text,
+                    image_count=count,
+                    status="completed",
+                )
+            except Exception:
+                pass  # Obsidian logging is optional
 
     except Exception as e:
         batch = db.get(Batch, batch_id)
@@ -72,7 +80,7 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
         db.close()
 
 @router.post("/generate", response_model=GenerateBatchResponse)
-async def generate_batch(body: GenerateBatchRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def generate_batch(body: GenerateBatchRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_sync_db)):
     prompt = db.get(Prompt, body.prompt_id)
     if not prompt:
         raise HTTPException(404, "Prompt not found")
@@ -97,14 +105,14 @@ async def generate_batch(body: GenerateBatchRequest, background_tasks: Backgroun
     return GenerateBatchResponse(batch_id=batch.id, status="pending", message=f"Generating {body.count} images for '{prompt.name}'")
 
 @router.get("/batches", response_model=list[BatchOut])
-def list_batches(status: str | None = None, db: Session = Depends(get_db)):
+def list_batches(status: str | None = None, db: Session = Depends(get_sync_db)):
     q = db.query(Batch).order_by(Batch.id.desc())
     if status:
         q = q.filter(Batch.status == status)
     return q.all()
 
 @router.get("/batches/{batch_id}", response_model=BatchOut)
-def get_batch(batch_id: int, db: Session = Depends(get_db)):
+def get_batch(batch_id: int, db: Session = Depends(get_sync_db)):
     batch = db.get(Batch, batch_id)
     if not batch:
         raise HTTPException(404, "Batch not found")

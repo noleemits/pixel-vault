@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 from pydantic import BaseModel
 
 # --- Prompts ---
@@ -7,9 +8,8 @@ class PromptOut(BaseModel):
     industry: str
     name: str
     prompt_text: str
-    use_case: str
-    ratios: str
-    kontext_variations: str
+    use_case: str | None = None
+    ratios: str | None = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -18,7 +18,6 @@ class PromptUpdate(BaseModel):
     prompt_text: str | None = None
     use_case: str | None = None
     ratios: str | None = None
-    kontext_variations: str | None = None
 
 # --- Batches ---
 class BatchCreate(BaseModel):
@@ -38,20 +37,21 @@ class BatchOut(BaseModel):
 
 # --- Images ---
 class ImageOut(BaseModel):
-    id: int
+    id: UUID | int
     filename: str
     filepath: str
     industry: str
     style: str
     ratio: str
     status: str
-    quality_score: int | None
-    width: int | None
-    height: int | None
-    file_size: int | None
+    quality_score: float | None = None
+    width: int | None = None
+    height: int | None = None
+    file_size: int | None = None
     prompt_id: int
     batch_id: int
-    tags: list[str] = []
+    model_used: str | None = None
+    router_reason: str | None = None
     created_at: datetime
     model_config = {"from_attributes": True}
 

@@ -4,8 +4,11 @@ Run: python -m app.cli seed
 Run: python -m app.cli serve
 """
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 import app.models  # noqa: F401 — register models with Base before create_all
-from app.database import Base, engine, SessionLocal
+from app.database import Base, sync_engine as engine, SessionLocal
 from app.seed.master_prompts import seed_prompts
 
 

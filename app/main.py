@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.database import Base, engine
+from app.database import Base, sync_engine as engine
 from app.routers import prompts, images, generation, tags
 from app.config import settings
 import os

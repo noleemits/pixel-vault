@@ -16,6 +16,8 @@ let allPrompts = [];
 let currentPromptId = null;
 let genCount = 3;
 let currentReviewFilter = null;
+let currentReviewPage = 1;
+let reviewPerPage = 50;
 let pollTimers = {};
 
 // ─── Init ───
@@ -235,9 +237,28 @@ async function submitGenerate() {
 // ═══ REVIEW ═══
 async function loadReview() {
   try {
-    const params = currentReviewFilter ? `?status=${currentReviewFilter}&per_page=100` : '?per_page=100';
-    const images = await api(`/images${params}`);
+    const params = new URLSearchParams({ page: currentReviewPage, per_page: reviewPerPage });
+    if (currentReviewFilter) params.set('status', currentReviewFilter);
+    const images = await api(`/images?${params}`);
     const grid = document.getElementById('reviewGrid');
+
+    // Update pagination controls
+    const stats = await api('/stats');
+    const filteredTotal = currentReviewFilter ? stats[currentReviewFilter] : stats.total;
+    const totalPages = Math.max(1, Math.ceil(filteredTotal / reviewPerPage));
+
+    let paginationEl = document.getElementById('reviewPagination');
+    if (!paginationEl) {
+      paginationEl = document.createElement('div');
+      paginationEl.id = 'reviewPagination';
+      paginationEl.className = 'review-pagination';
+      grid.parentNode.insertBefore(paginationEl, grid.nextSibling);
+    }
+    paginationEl.innerHTML = `
+      <button class="btn btn--ghost btn--sm" onclick="changeReviewPage(-1)" ${currentReviewPage <= 1 ? 'disabled' : ''}>Prev</button>
+      <span class="review-pagination__info">Page ${currentReviewPage} of ${totalPages} (${filteredTotal} images)</span>
+      <button class="btn btn--ghost btn--sm" onclick="changeReviewPage(1)" ${currentReviewPage >= totalPages ? 'disabled' : ''}>Next</button>
+    `;
 
     if (images.length === 0) {
       grid.innerHTML = '<div class="batch-table__empty">No images found.</div>';
@@ -246,19 +267,20 @@ async function loadReview() {
 
     grid.innerHTML = images.map(img => {
       const sizeMB = img.file_size ? (img.file_size / 1048576).toFixed(1) : '—';
+      const model = img.model_used || '—';
       return `
         <div class="review-card" id="review-card-${img.id}">
-          <div class="review-card__img-wrap" onclick="openLightbox(${img.id})">
+          <div class="review-card__img-wrap" onclick="openLightbox('${img.id}')">
             <img class="review-card__img" src="/api/v1/images/${img.id}/file" alt="${img.filename}" loading="lazy">
             <span class="review-card__status-badge review-card__status-badge--${img.status}">${img.status}</span>
           </div>
           <div class="review-card__info">
             <div class="review-card__filename">${img.filename}</div>
-            <div class="review-card__dims">${img.width || '—'}×${img.height || '—'} · ${sizeMB} MB · ${img.ratio}</div>
+            <div class="review-card__dims">${img.width || '—'}x${img.height || '—'} · ${sizeMB} MB · ${img.ratio} · ${model}</div>
             <div class="review-card__actions">
-              ${img.status !== 'approved' ? `<button class="btn btn--approve btn--sm" onclick="reviewImage(${img.id}, 'approved')">Approve</button>` : ''}
-              ${img.status !== 'rejected' ? `<button class="btn btn--reject btn--sm" onclick="reviewImage(${img.id}, 'rejected')">Reject</button>` : ''}
-              ${img.status !== 'pending' ? `<button class="btn btn--ghost btn--sm" onclick="reviewImage(${img.id}, 'pending')">Reset</button>` : ''}
+              ${img.status !== 'approved' ? `<button class="btn btn--approve btn--sm" onclick="reviewImage('${img.id}', 'approved')">Approve</button>` : ''}
+              ${img.status !== 'rejected' ? `<button class="btn btn--reject btn--sm" onclick="reviewImage('${img.id}', 'rejected')">Reject</button>` : ''}
+              ${img.status !== 'pending' ? `<button class="btn btn--ghost btn--sm" onclick="reviewImage('${img.id}', 'pending')">Reset</button>` : ''}
             </div>
           </div>
         </div>
@@ -269,8 +291,15 @@ async function loadReview() {
   }
 }
 
+function changeReviewPage(delta) {
+  currentReviewPage = Math.max(1, currentReviewPage + delta);
+  loadReview();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function filterReviewStatus(status, btnEl) {
   currentReviewFilter = status;
+  currentReviewPage = 1;
   if (btnEl) {
     document.querySelectorAll('.review-filters .filter-btn').forEach(b => b.classList.remove('active'));
     btnEl.classList.add('active');
@@ -303,8 +332,8 @@ function openLightbox(imageId) {
       ${data.filename} · ${data.width}×${data.height} · ${sizeMB} MB · ${data.industry} / ${data.style}
     `;
     document.getElementById('lightboxActions').innerHTML = `
-      <button class="btn btn--approve btn--sm" onclick="reviewImage(${data.id}, 'approved'); closeLightbox();">Approve</button>
-      <button class="btn btn--reject btn--sm" onclick="reviewImage(${data.id}, 'rejected'); closeLightbox();">Reject</button>
+      <button class="btn btn--approve btn--sm" onclick="reviewImage('${data.id}', 'approved'); closeLightbox();">Approve</button>
+      <button class="btn btn--reject btn--sm" onclick="reviewImage('${data.id}', 'rejected'); closeLightbox();">Reject</button>
     `;
   });
 
