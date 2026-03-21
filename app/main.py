@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.database import Base, sync_engine as engine
-from app.routers import prompts, images, generation, tags
+from app.routers import prompts, images, generation, tags, sites
 from app.config import settings
 import os
 
@@ -18,6 +18,7 @@ app.include_router(prompts.router, prefix="/api/v1")
 app.include_router(images.router, prefix="/api/v1")
 app.include_router(generation.router, prefix="/api/v1")
 app.include_router(tags.router, prefix="/api/v1")
+app.include_router(sites.router, prefix="/api/v1")
 
 os.makedirs(settings.storage_path, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")

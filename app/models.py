@@ -97,17 +97,22 @@ class ApiKey(Base):
 class Site(Base):
     __tablename__ = "sites"
 
-    id:         Mapped[uuid.UUID]        = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    account_id: Mapped[uuid.UUID]        = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    name:       Mapped[str]              = mapped_column(Text, nullable=False)
-    url:        Mapped[str]              = mapped_column(Text, nullable=False)
-    api_key_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="SET NULL"))
-    industry:   Mapped[Optional[str]]    = mapped_column(Text)
-    serve_from: Mapped[str]              = mapped_column(String(20), nullable=False, default="cdn")
-    created_at: Mapped[datetime]         = mapped_column(default=_utcnow)
+    id:                Mapped[uuid.UUID]           = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id:        Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"))
+    name:              Mapped[str]                 = mapped_column(Text, nullable=False)
+    url:               Mapped[str]                 = mapped_column(Text, nullable=False)
+    api_key_id:        Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("api_keys.id", ondelete="SET NULL"))
+    industry:          Mapped[Optional[str]]       = mapped_column(Text)
+    business_type:     Mapped[Optional[str]]       = mapped_column(Text)
+    location:          Mapped[Optional[str]]       = mapped_column(Text)
+    mood_tags:         Mapped[Optional[list[str]]] = mapped_column(ARRAY(Text))
+    style_prefix:      Mapped[Optional[str]]       = mapped_column(Text)
+    negative_keywords: Mapped[Optional[str]]       = mapped_column(Text)
+    serve_from:        Mapped[str]                 = mapped_column(String(20), nullable=False, default="cdn")
+    created_at:        Mapped[datetime]            = mapped_column(default=_utcnow)
 
-    account:     Mapped["Account"]               = relationship(back_populates="sites")
-    api_key:     Mapped[Optional["ApiKey"]]      = relationship(back_populates="sites")
+    account:     Mapped[Optional["Account"]]        = relationship(back_populates="sites")
+    api_key:     Mapped[Optional["ApiKey"]]          = relationship(back_populates="sites")
     deployments: Mapped[list["ImageDeployment"]] = relationship(back_populates="site", cascade="all, delete-orphan")
 
 
@@ -215,7 +220,7 @@ class ImageDeployment(Base):
 
     id:             Mapped[uuid.UUID]       = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     image_id:       Mapped[uuid.UUID]       = mapped_column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
-    account_id:     Mapped[uuid.UUID]       = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    account_id:     Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"))
     site_id:        Mapped[uuid.UUID]       = mapped_column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
     local_filename: Mapped[Optional[str]]   = mapped_column(Text)
     local_path:     Mapped[Optional[str]]   = mapped_column(Text)
