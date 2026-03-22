@@ -79,6 +79,14 @@ class GenerateBatchResponse(BaseModel):
     status: str
     message: str
 
+class GenerateFromPromptRequest(BaseModel):
+    prompt: str
+    count: int = 1
+    ratio: str = "16:9"
+    quality: str = "sd"
+    style_prefix: str = ""
+    negative_keywords: str = ""
+
 # --- Tags ---
 class TagOut(BaseModel):
     id: int

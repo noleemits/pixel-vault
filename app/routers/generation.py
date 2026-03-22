@@ -1,10 +1,11 @@
 import os
 from datetime import datetime, timezone
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database import get_sync_db
 from app.models import Prompt, Batch, Image
-from app.schemas import GenerateBatchRequest, GenerateBatchResponse, BatchOut
+from app.schemas import GenerateBatchRequest, GenerateBatchResponse, GenerateFromPromptRequest, BatchOut
 from app.services.fal_client import FalClient, requires_hands
 from app.services.imagen_client import ImagenClient
 from app.services.image_processor import ImageProcessor
@@ -25,10 +26,10 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
 
         if requires_hands(prompt_text):
             client = ImagenClient(api_key=settings.google_api_key)
+            results = await client.generate_batch(prompt=prompt_text, ratio=ratio, count=count, size="2K")
         else:
             client = FalClient(api_key=settings.fal_api_key)
-
-        results = await client.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
+            results = await client.generate_batch(prompt=prompt_text, ratio=ratio, count=count)
 
         ratio_label = ratio.replace(":", "x")
         existing_count = db.query(Image).filter(Image.industry == industry, Image.style == style).count()
@@ -103,6 +104,42 @@ async def generate_batch(body: GenerateBatchRequest, background_tasks: Backgroun
     )
 
     return GenerateBatchResponse(batch_id=batch.id, status="pending", message=f"Generating {body.count} images for '{prompt.name}'")
+
+@router.post("/generate-from-prompt")
+async def generate_from_prompt(body: GenerateFromPromptRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_sync_db)):
+    """Generate images directly from a raw prompt string (used by WordPress plugin)."""
+
+    # Create an ad-hoc prompt record so we can reuse the existing pipeline.
+    prompt = Prompt(
+        industry="custom",
+        name=f"WP — {body.prompt[:60]} ({uuid4().hex[:8]})",
+        prompt_text=body.prompt,
+        use_case="wordpress",
+    )
+    db.add(prompt)
+    db.commit()
+    db.refresh(prompt)
+
+    batch = Batch(prompt_id=prompt.id, image_count=body.count, ratio=body.ratio, status="pending")
+    db.add(batch)
+    db.commit()
+    db.refresh(batch)
+
+    # Determine size tier from quality.
+    size = "2K" if body.quality == "hq" else "1K"
+
+    background_tasks.add_task(
+        _run_generation,
+        batch_id=batch.id,
+        prompt_text=body.prompt,
+        industry="custom",
+        style="general",
+        ratio=body.ratio,
+        count=body.count,
+    )
+
+    return {"batch_id": batch.id, "status": "pending", "message": f"Generating {body.count} image(s)"}
+
 
 @router.get("/batches", response_model=list[BatchOut])
 def list_batches(status: str | None = None, db: Session = Depends(get_sync_db)):
