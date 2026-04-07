@@ -45,7 +45,8 @@ if not _raw_url:
 
 # Strip any async driver prefix so psycopg2 (Alembic's default) is used.
 _sync_url = re.sub(r"^postgresql(\+\w+)?://", "postgresql://", _raw_url)
-config.set_main_option("sqlalchemy.url", _sync_url)
+# Escape % for configparser interpolation.
+config.set_main_option("sqlalchemy.url", _sync_url.replace("%", "%%"))
 
 # ---------------------------------------------------------------------------
 # Import metadata so --autogenerate can detect model changes

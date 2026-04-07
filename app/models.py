@@ -63,6 +63,10 @@ class Account(Base):
     generations_limit:  Mapped[int]              = mapped_column(Integer, nullable=False, default=3)
     sync_limit:         Mapped[int]              = mapped_column(Integer, nullable=False, default=50)
     stripe_customer_id: Mapped[Optional[str]]    = mapped_column(Text)
+    freemius_user_id:   Mapped[Optional[int]]    = mapped_column(Integer, unique=True)
+    freemius_plan_id:   Mapped[Optional[str]]    = mapped_column(Text)
+    license_key:        Mapped[Optional[str]]    = mapped_column(Text)
+    plan_expires_at:    Mapped[Optional[datetime]] = mapped_column(default=None)
     created_at:         Mapped[datetime]         = mapped_column(default=_utcnow)
 
     api_keys:    Mapped[list["ApiKey"]]          = relationship(back_populates="account", cascade="all, delete-orphan")
@@ -190,6 +194,7 @@ class Image(Base):
     last_accessed:    Mapped[Optional[datetime]] = mapped_column(default=None)
     is_official:      Mapped[bool]               = mapped_column(Boolean, nullable=False, default=False)
     is_community:     Mapped[bool]               = mapped_column(Boolean, nullable=False, default=False)
+    description:      Mapped[Optional[str]]      = mapped_column(Text)
     created_at:       Mapped[datetime]           = mapped_column(default=_utcnow)
 
     prompt:      Mapped["Prompt"]                        = relationship(back_populates="images")
@@ -206,9 +211,10 @@ class Image(Base):
 class Tag(Base):
     __tablename__ = "tags"
 
-    id:     Mapped[int] = mapped_column(Integer, primary_key=True)
-    name:   Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
-    images: Mapped[list["Image"]] = relationship(secondary=image_tags, back_populates="tags")
+    id:       Mapped[int]           = mapped_column(Integer, primary_key=True)
+    name:     Mapped[str]           = mapped_column(String(100), nullable=False, unique=True, index=True)
+    category: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    images:   Mapped[list["Image"]] = relationship(secondary=image_tags, back_populates="tags")
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +240,22 @@ class ImageDeployment(Base):
     image:   Mapped["Image"]   = relationship(back_populates="deployments")
     account: Mapped["Account"] = relationship(back_populates="deployments")
     site:    Mapped["Site"]    = relationship(back_populates="deployments")
+
+
+# ---------------------------------------------------------------------------
+# ApiLog
+# ---------------------------------------------------------------------------
+
+class ApiLog(Base):
+    __tablename__ = "api_logs"
+
+    id:               Mapped[int]                 = mapped_column(Integer, primary_key=True)
+    account_id:       Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL"))
+    endpoint:         Mapped[str]                 = mapped_column(Text, nullable=False)
+    method:           Mapped[str]                 = mapped_column(String(10), nullable=False)
+    status_code:      Mapped[Optional[int]]       = mapped_column(Integer)
+    response_time_ms: Mapped[Optional[int]]       = mapped_column(Integer)
+    ip_address:       Mapped[Optional[str]]       = mapped_column(Text)
+    user_agent:       Mapped[Optional[str]]       = mapped_column(Text)
+    error_message:    Mapped[Optional[str]]       = mapped_column(Text)
+    created_at:       Mapped[datetime]            = mapped_column(default=_utcnow)
