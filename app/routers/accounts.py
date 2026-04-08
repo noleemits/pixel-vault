@@ -51,9 +51,9 @@ class AccountStatusResponse(BaseModel):
 
 PLAN_LIMITS = {
     "free":   {"generations_limit": 3,   "sync_limit": 50},
-    "solo":   {"generations_limit": 20,  "sync_limit": 300},
-    "pro":    {"generations_limit": 60,  "sync_limit": 1500},
-    "agency": {"generations_limit": 150, "sync_limit": 999999},
+    "solo":   {"generations_limit": 10,  "sync_limit": 100},
+    "pro":    {"generations_limit": 40,  "sync_limit": 500},
+    "agency": {"generations_limit": 120, "sync_limit": 999999},
 }
 
 

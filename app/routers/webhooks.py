@@ -17,11 +17,16 @@ router = APIRouter(tags=["webhooks"])
 
 
 # Freemius plan ID → internal plan name.
-# TODO: Fill in real Freemius plan IDs after creating plans in Freemius dashboard.
 FREEMIUS_PLAN_MAP = {
-    # "12345": "solo",
-    # "12346": "pro",
-    # "12347": "agency",
+    "45285": "free",
+    "45277": "solo",
+    "45278": "pro",
+    "45279": "agency",
+}
+
+# Freemius add-on ID → number of generations to add.
+TOPUP_ADDON_MAP = {
+    "27384": 25,  # "25 Extra Generations" add-on
 }
 
 # Plan limits — imported from accounts router to stay DRY.
@@ -157,6 +162,16 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
         account.license_key = data.get("license_key") or account.license_key
         db.commit()
         return {"ok": True, "action": "license_recorded"}
+
+    # --- payment.created (top-up packs) ---
+    if event_type == "payment.created":
+        addon_id = str(data.get("plugin_id", ""))
+        extra_gens = TOPUP_ADDON_MAP.get(addon_id)
+        if extra_gens:
+            account.generations_limit = (account.generations_limit or 0) + extra_gens
+            db.commit()
+            return {"ok": True, "action": f"topup_added_{extra_gens}_generations"}
+        return {"ok": True, "action": "payment_not_topup"}
 
     # Unknown event — acknowledge.
     return {"ok": True, "action": "ignored", "event": event_type}

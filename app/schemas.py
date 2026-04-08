@@ -52,8 +52,17 @@ class ImageOut(BaseModel):
     batch_id: int
     model_used: str | None = None
     router_reason: str | None = None
+    description: str | None = None
+    tags: list[str] = []
     created_at: datetime
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_image(cls, img):
+        """Build ImageOut with tag names from an Image ORM instance."""
+        data = {c.key: getattr(img, c.key) for c in img.__table__.columns}
+        data["tags"] = [t.name for t in img.tags]
+        return cls(**data)
 
 class ImageReview(BaseModel):
     status: str
@@ -91,4 +100,9 @@ class GenerateFromPromptRequest(BaseModel):
 class TagOut(BaseModel):
     id: int
     name: str
+    category: str | None = None
     model_config = {"from_attributes": True}
+
+class TagUpdate(BaseModel):
+    add: list[str] = []
+    remove: list[str] = []

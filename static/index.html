@@ -46,20 +46,56 @@
         <div class="stat-card__label">Total Images</div>
         <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--total" id="barTotal"></div></div>
       </div>
-      <div class="stat-card stat-card--approved">
+      <div class="stat-card stat-card--approved" style="cursor:pointer" onclick="switchView('review'); filterReviewStatus('approved', document.querySelector('.filter-btn:nth-child(3)'))">
         <div class="stat-card__value" id="statApproved">—</div>
         <div class="stat-card__label">Approved</div>
         <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--approved" id="barApproved"></div></div>
       </div>
-      <div class="stat-card stat-card--pending">
+      <div class="stat-card stat-card--pending" style="cursor:pointer" onclick="switchView('review'); filterReviewStatus('pending', document.querySelector('.filter-btn:nth-child(2)'))">
         <div class="stat-card__value" id="statPending">—</div>
         <div class="stat-card__label">Pending Review</div>
         <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--pending" id="barPending"></div></div>
       </div>
-      <div class="stat-card stat-card--rejected">
+      <div class="stat-card stat-card--rejected" style="cursor:pointer" onclick="switchView('review'); filterReviewStatus('rejected', document.querySelector('.filter-btn:nth-child(4)'))">
         <div class="stat-card__value" id="statRejected">—</div>
         <div class="stat-card__label">Rejected</div>
         <div class="stat-card__bar"><div class="stat-card__fill stat-card__fill--rejected" id="barRejected"></div></div>
+      </div>
+    </section>
+
+    <!-- Billing & Usage -->
+    <section class="panel">
+      <h2 class="panel__title">Billing & Usage</h2>
+      <div class="billing-grid" id="billingGrid">
+        <div class="billing-card">
+          <div class="billing-card__label">Batches Run</div>
+          <div class="billing-card__value" id="billingBatches">—</div>
+        </div>
+        <div class="billing-card">
+          <div class="billing-card__label">Images Generated</div>
+          <div class="billing-card__value" id="billingImages">—</div>
+        </div>
+        <div class="billing-card">
+          <div class="billing-card__label">Est. Cost (FLUX)</div>
+          <div class="billing-card__value" id="billingFlux">—</div>
+        </div>
+        <div class="billing-card">
+          <div class="billing-card__label">Est. Cost (Imagen)</div>
+          <div class="billing-card__value" id="billingImagen">—</div>
+        </div>
+        <div class="billing-card">
+          <div class="billing-card__label">Total Est. Cost</div>
+          <div class="billing-card__value billing-card__value--highlight" id="billingTotal">—</div>
+        </div>
+        <div class="billing-card">
+          <div class="billing-card__label">Deployments</div>
+          <div class="billing-card__value" id="billingDeployments">—</div>
+        </div>
+      </div>
+      <div class="billing-links" style="margin-top:12px;">
+        <a href="https://fal.ai/dashboard/billing" target="_blank" class="billing-link">fal.ai Billing</a>
+        <a href="https://aistudio.google.com/apikey" target="_blank" class="billing-link">Google AI Billing</a>
+        <a href="https://supabase.com/dashboard/project/rnfinyrluxokvdzxhvuv/settings/billing" target="_blank" class="billing-link">Supabase Usage</a>
       </div>
     </section>
 
@@ -107,8 +143,26 @@
           <button class="filter-btn" onclick="filterReviewStatus('pending', this)">Pending</button>
           <button class="filter-btn" onclick="filterReviewStatus('approved', this)">Approved</button>
           <button class="filter-btn" onclick="filterReviewStatus('rejected', this)">Rejected</button>
+          <span style="margin-left:auto; font-size:12px; color:#94a3b8;">Sort:</span>
+          <button class="filter-btn sort-btn active" onclick="setSort('newest', this)">Newest</button>
+          <button class="filter-btn sort-btn" onclick="setSort('oldest', this)">Oldest</button>
+          <button class="filter-btn sort-btn" onclick="setSort('name', this)">Name</button>
+          <button class="filter-btn sort-btn" onclick="setSort('usage', this)">Most Used</button>
         </div>
       </div>
+
+      <!-- Tag pill filters -->
+      <div class="tag-filters" id="tagFilters">
+        <div class="tag-filters__controls">
+          <button class="filter-btn filter-btn--clear active" onclick="clearTagFilters()">All Tags</button>
+          <div class="tag-mode-toggle" id="tagModeToggle">
+            <button class="tag-mode-btn active" data-mode="or" onclick="setTagMode('or', this)">Any</button>
+            <button class="tag-mode-btn" data-mode="and" onclick="setTagMode('and', this)">All</button>
+          </div>
+        </div>
+        <div id="tagPillGroups"></div>
+      </div>
+
       <div class="review-grid" id="reviewGrid">
         <div class="batch-table__empty">No images yet — generate a batch first.</div>
       </div>

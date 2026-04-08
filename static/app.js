@@ -19,22 +19,45 @@ let currentReviewFilter = null;
 let currentReviewPage = 1;
 let reviewPerPage = 50;
 let pollTimers = {};
+let activeTags = new Set();
+let tagMode = 'or';
+let currentSort = 'newest';
+let groupedTags = {};
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', async () => {
   await checkHealth();
   await loadDashboard();
   await loadPrompts();
+  await loadTagFilters();
   // Poll for active batches every 5 seconds
   setInterval(pollActiveBatches, 5000);
 });
 
 // ─── API Helpers ───
+// API key for dashboard — loaded from a meta tag or prompt on first use.
+let DASHBOARD_API_KEY = localStorage.getItem('pixelvault_api_key') || '';
+
+function setApiKey(key) {
+  DASHBOARD_API_KEY = key;
+  localStorage.setItem('pixelvault_api_key', key);
+}
+
 async function api(endpoint, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (DASHBOARD_API_KEY) headers['X-API-Key'] = DASHBOARD_API_KEY;
   const resp = await fetch(API + endpoint, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   });
+  // If 403, prompt for API key.
+  if (resp.status === 403 && !DASHBOARD_API_KEY) {
+    const key = prompt('Enter your PixelVault API key:');
+    if (key) {
+      setApiKey(key);
+      return api(endpoint, options); // Retry with key.
+    }
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
     throw new Error(err.detail || `HTTP ${resp.status}`);
@@ -82,6 +105,17 @@ async function loadDashboard() {
       document.getElementById('barPending').style.width = (stats.pending / max * 100) + '%';
       document.getElementById('barRejected').style.width = (stats.rejected / max * 100) + '%';
     }, 100);
+
+    // Billing
+    try {
+      const billing = await api('/billing');
+      document.getElementById('billingBatches').textContent = billing.batches;
+      document.getElementById('billingImages').textContent = billing.images;
+      document.getElementById('billingFlux').textContent = '$' + billing.flux_cost.toFixed(2) + ' (' + billing.flux_count + ' imgs)';
+      document.getElementById('billingImagen').textContent = '$' + billing.imagen_cost.toFixed(2) + ' (' + billing.imagen_count + ' imgs)';
+      document.getElementById('billingTotal').textContent = '$' + billing.total_cost.toFixed(2);
+      document.getElementById('billingDeployments').textContent = billing.deployments;
+    } catch (e) { console.warn('Billing load failed:', e); }
 
     // Industry grid
     const grid = document.getElementById('industryGrid');
@@ -234,11 +268,100 @@ async function submitGenerate() {
   }
 }
 
+// ═══ TAG FILTERS ═══
+const CATEGORY_LABELS = {
+  industry: 'Industry',
+  scene: 'Scene',
+  subject: 'Subject',
+  mood: 'Mood',
+  use_case: 'Use Case',
+};
+
+const CATEGORY_ORDER = ['industry', 'scene', 'subject', 'mood', 'use_case'];
+
+async function loadTagFilters() {
+  try {
+    groupedTags = await api('/tags/grouped');
+    renderTagPills();
+  } catch (e) {
+    console.warn('Tag filters load failed:', e);
+  }
+}
+
+function renderTagPills() {
+  const container = document.getElementById('tagPillGroups');
+  if (!container) return;
+
+  const categories = CATEGORY_ORDER.filter(c => groupedTags[c]);
+  container.innerHTML = categories.map(cat => {
+    const tags = groupedTags[cat] || [];
+    return `
+      <div class="tag-group">
+        <span class="tag-group__label">${CATEGORY_LABELS[cat] || cat}</span>
+        <div class="tag-group__pills">
+          ${tags.map(t => `
+            <button class="tag-pill ${activeTags.has(t.name) ? 'active' : ''}"
+                    onclick="toggleTag('${t.name}')">
+              ${t.name.replace('_', ' ')}
+              <span class="tag-pill__count">${t.count}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleTag(tagName) {
+  if (activeTags.has(tagName)) {
+    activeTags.delete(tagName);
+  } else {
+    activeTags.add(tagName);
+  }
+  // Update clear button state.
+  const clearBtn = document.querySelector('.filter-btn--clear');
+  if (clearBtn) clearBtn.classList.toggle('active', activeTags.size === 0);
+  renderTagPills();
+  currentReviewPage = 1;
+  loadReview();
+}
+
+function clearTagFilters() {
+  activeTags.clear();
+  renderTagPills();
+  const clearBtn = document.querySelector('.filter-btn--clear');
+  if (clearBtn) clearBtn.classList.add('active');
+  currentReviewPage = 1;
+  loadReview();
+}
+
+function setSort(sort, btnEl) {
+  currentSort = sort;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  currentReviewPage = 1;
+  loadReview();
+}
+
+function setTagMode(mode, btnEl) {
+  tagMode = mode;
+  document.querySelectorAll('.tag-mode-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  if (activeTags.size > 0) {
+    currentReviewPage = 1;
+    loadReview();
+  }
+}
+
 // ═══ REVIEW ═══
 async function loadReview() {
   try {
-    const params = new URLSearchParams({ page: currentReviewPage, per_page: reviewPerPage });
+    const params = new URLSearchParams({ page: currentReviewPage, per_page: reviewPerPage, sort: currentSort });
     if (currentReviewFilter) params.set('status', currentReviewFilter);
+    if (activeTags.size > 0) {
+      params.set('tags', [...activeTags].join(','));
+      params.set('tag_mode', tagMode);
+    }
     const images = await api(`/images?${params}`);
     const grid = document.getElementById('reviewGrid');
 
@@ -268,6 +391,7 @@ async function loadReview() {
     grid.innerHTML = images.map(img => {
       const sizeMB = img.file_size ? (img.file_size / 1048576).toFixed(1) : '—';
       const model = img.model_used || '—';
+      const tagPills = (img.tags || []).map(t => `<span class="review-card__tag">${t.replace('_', ' ')}</span>`).join('');
       return `
         <div class="review-card" id="review-card-${img.id}">
           <div class="review-card__img-wrap" onclick="openLightbox('${img.id}')">
@@ -277,6 +401,7 @@ async function loadReview() {
           <div class="review-card__info">
             <div class="review-card__filename">${img.filename}</div>
             <div class="review-card__dims">${img.width || '—'}x${img.height || '—'} · ${sizeMB} MB · ${img.ratio} · ${model}</div>
+            ${tagPills ? `<div class="review-card__tags">${tagPills}</div>` : ''}
             <div class="review-card__actions">
               ${img.status !== 'approved' ? `<button class="btn btn--approve btn--sm" onclick="reviewImage('${img.id}', 'approved')">Approve</button>` : ''}
               ${img.status !== 'rejected' ? `<button class="btn btn--reject btn--sm" onclick="reviewImage('${img.id}', 'rejected')">Reject</button>` : ''}
@@ -328,8 +453,10 @@ function openLightbox(imageId) {
 
   api(`/images/${imageId}`).then(data => {
     const sizeMB = data.file_size ? (data.file_size / 1048576).toFixed(1) : '—';
+    const tagStr = (data.tags || []).map(t => t.replace('_', ' ')).join(', ');
     document.getElementById('lightboxMeta').innerHTML = `
       ${data.filename} · ${data.width}×${data.height} · ${sizeMB} MB · ${data.industry} / ${data.style}
+      ${tagStr ? `<br><span class="lightbox__tags">${tagStr}</span>` : ''}
     `;
     document.getElementById('lightboxActions').innerHTML = `
       <button class="btn btn--approve btn--sm" onclick="reviewImage('${data.id}', 'approved'); closeLightbox();">Approve</button>
