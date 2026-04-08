@@ -3,7 +3,7 @@
 # Run as root on a fresh Ubuntu 24.04 server.
 set -euo pipefail
 
-DOMAIN="api.noleemits.com"
+DOMAIN="vaultapi.noleemits.com"
 APP_DIR="/opt/pixelvault"
 APP_USER="pixelvault"
 REPO="https://github.com/noleemits/pixel-vault.git"
