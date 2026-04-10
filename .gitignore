@@ -6,6 +6,7 @@ test.db
 storage/images/*
 !storage/images/.gitkeep
 .pytest_cache/
+docs/
 
 # LoRA training inputs — temporary, remove folder when done
 lora-inputs/*.jpg
