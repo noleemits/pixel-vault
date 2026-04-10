@@ -52,10 +52,10 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
     Events:
     - install.installed → new free account
     - subscription.created → paid subscription started
-    - subscription.upgraded → plan upgraded
-    - subscription.downgraded → plan downgraded
+    - install.plan.changed → plan upgraded (or changed)
+    - install.plan.downgraded → plan downgraded
     - subscription.cancelled → cancel (downgrade at period end)
-    - subscription.renewed → reset monthly generation counter
+    - payment.created → renewal (resets usage) or top-up add-on purchase
     - license.activated → record site activation
     """
     body = await request.json()
@@ -99,8 +99,8 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
     if not account:
         raise HTTPException(404, f"No account for Freemius user {freemius_user_id}")
 
-    # --- subscription.created / upgraded ---
-    if event_type in ("subscription.created", "subscription.upgraded"):
+    # --- subscription.created / install.plan.changed: new or upgraded plan ---
+    if event_type in ("subscription.created", "install.plan.changed"):
         plan_id = str(data.get("plan_id", ""))
         plan = _resolve_plan(plan_id)
         limits = _get_plan_limits(plan)
@@ -121,8 +121,8 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
         db.commit()
         return {"ok": True, "action": f"plan_updated_to_{plan}"}
 
-    # --- subscription.downgraded ---
-    if event_type == "subscription.downgraded":
+    # --- install.plan.downgraded ---
+    if event_type == "install.plan.downgraded":
         plan_id = str(data.get("plan_id", ""))
         plan = _resolve_plan(plan_id)
         limits = _get_plan_limits(plan)
@@ -145,8 +145,23 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
         db.commit()
         return {"ok": True, "action": "cancellation_recorded"}
 
-    # --- subscription.renewed ---
-    if event_type == "subscription.renewed":
+    # --- license.activated ---
+    if event_type == "license.activated":
+        account.license_key = data.get("license_key") or account.license_key
+        db.commit()
+        return {"ok": True, "action": "license_recorded"}
+
+    # --- payment.created: subscription renewal OR top-up add-on ---
+    if event_type == "payment.created":
+        addon_id = str(data.get("plugin_id", ""))
+        extra_gens = TOPUP_ADDON_MAP.get(addon_id)
+        if extra_gens:
+            # Top-up add-on purchase.
+            account.generations_limit = (account.generations_limit or 0) + extra_gens
+            db.commit()
+            return {"ok": True, "action": f"topup_added_{extra_gens}_generations"}
+
+        # Subscription renewal payment — reset monthly usage.
         account.generations_used = 0
         expires = data.get("next_payment")
         if expires:
@@ -155,23 +170,7 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
             except (ValueError, AttributeError):
                 pass
         db.commit()
-        return {"ok": True, "action": "usage_reset"}
-
-    # --- license.activated ---
-    if event_type == "license.activated":
-        account.license_key = data.get("license_key") or account.license_key
-        db.commit()
-        return {"ok": True, "action": "license_recorded"}
-
-    # --- payment.created (top-up packs) ---
-    if event_type == "payment.created":
-        addon_id = str(data.get("plugin_id", ""))
-        extra_gens = TOPUP_ADDON_MAP.get(addon_id)
-        if extra_gens:
-            account.generations_limit = (account.generations_limit or 0) + extra_gens
-            db.commit()
-            return {"ok": True, "action": f"topup_added_{extra_gens}_generations"}
-        return {"ok": True, "action": "payment_not_topup"}
+        return {"ok": True, "action": "usage_reset_on_renewal"}
 
     # Unknown event — acknowledge.
     return {"ok": True, "action": "ignored", "event": event_type}
