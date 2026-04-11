@@ -11,6 +11,7 @@ from app.services.imagen_client import ImagenClient
 from app.services.image_processor import ImageProcessor
 from app.services.obsidian_logger import ObsidianLogger
 from app.services.auto_tagger import auto_tag_image
+from app.services.storage import r2
 from app.config import settings
 from app.auth import get_current_account
 from app.services.plan_enforcer import check_generation_limit, increment_generation_count
@@ -40,9 +41,25 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
         for i, result in enumerate(results):
             number = existing_count + i + 1
             saved = processor.save_from_bytes(result["image_bytes"], industry, style, number, ratio_label)
+
+            # Upload to R2 if configured.
+            storage_key = None
+            cdn_url = None
+            if r2.enabled:
+                try:
+                    storage_key = r2.build_key(saved["filename"])
+                    cdn_url = r2.upload_file(saved["filepath"], storage_key)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning("R2 upload failed for %s: %s", saved["filename"], e)
+                    storage_key = None
+                    cdn_url = None
+
             image = Image(
                 filename=saved["filename"],
                 filepath=saved["filepath"],
+                storage_key_web=storage_key,
+                cdn_url=cdn_url,
                 industry=industry,
                 style=style,
                 ratio=ratio,
@@ -240,7 +257,8 @@ def get_batch(batch_id: int, db: Session = Depends(get_sync_db)):
             {
                 "id": str(img.id),
                 "filename": img.filename,
-                "url": f"/api/v1/images/{img.id}/file",
+                "url": img.cdn_url or f"/api/v1/images/{img.id}/file",
+                "cdn_url": img.cdn_url,
                 "description": img.description,
                 "width": img.width,
                 "height": img.height,

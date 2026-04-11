@@ -3,10 +3,12 @@ Push all PixelVault session updates to Obsidian.
 Run after opening Obsidian with the Local REST API plugin active.
 Usage: python tools/obsidian_sync.py
 """
-import httpx, sys
+import httpx, os, sys
+from dotenv import load_dotenv
+load_dotenv()
 
-API_URL = "https://127.0.0.1:27124"
-API_KEY = "34d1965a5700ccd2eeebcc5b0e2774f5c6d6516128f0ab9bd7bd5c187bfb798e"
+API_URL = os.environ.get("OBSIDIAN_API_URL", "https://127.0.0.1:27124")
+API_KEY = os.environ.get("OBSIDIAN_API_KEY", "")
 HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "text/markdown"}
 
 NOTES = {
@@ -252,7 +254,7 @@ Added: `hands in frame, fingers visible, human body parts, hand reaching into fr
 This prevents FLUX adding uninvited hands to food/product shots.
 
 ### Google API Key Updated
-New key: AIzaSyAM3nHp9_u58u4rrjWQmZ0lFWyMJ80LPQk
+New key: (stored in .env as GOOGLE_API_KEY)
 
 ## Product Direction (from chat-claude.md review)
 - Plugin-first product model confirmed

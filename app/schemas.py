@@ -40,6 +40,7 @@ class ImageOut(BaseModel):
     id: UUID | int
     filename: str
     filepath: str
+    cdn_url: str | None = None
     industry: str
     style: str
     ratio: str
