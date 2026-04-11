@@ -133,7 +133,7 @@ Local file storage at `./storage/images/` — MVP only, not scalable.
 - Integrated with Cloudflare CDN natively
 
 ### Delivery: Cloudflare CDN
-- Custom domain: `images.pixelvault.io`
+- Custom domain: `images.noleemits.com`
 - 300+ edge nodes globally
 - Images cached at the edge — instant load in plugin sidebar
 
@@ -153,7 +153,7 @@ Local file storage at `./storage/images/` — MVP only, not scalable.
 - **COLD:** Unused 90+ days, originals → Backblaze B2 ($0.006/GB)
 
 ### Serving Options (user choice)
-- **CDN (default):** `src` points to `images.pixelvault.io` — fast globally
+- **CDN (default):** `src` points to `images.noleemits.com` — fast globally
 - **Local:** Plugin downloads to `/wp-content/uploads/pixelvault/` at insertion
 - **Fallback:** Local copy always created at insertion regardless of serving choice
 

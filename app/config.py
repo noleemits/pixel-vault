@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     r2_secret_key: str = ""
     r2_bucket: str = "pixelvault"
     r2_endpoint: str = ""  # https://<account_id>.r2.cloudflarestorage.com
-    cdn_domain: str = ""   # e.g. images.pixelvault.io
+    cdn_domain: str = ""   # e.g. images.noleemits.com
 
     # Supabase JWT auth (dashboard)
     supabase_jwt_secret: str = ""
