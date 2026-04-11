@@ -76,15 +76,31 @@ async def freemius_webhook(request: Request, db: Session = Depends(get_sync_db))
         Account.freemius_user_id == int(freemius_user_id)
     ).first()
 
-    # --- install.installed: create free account ---
+    # --- install.installed: create free account or link existing ---
     if event_type == "install.installed":
         if account:
             return {"ok": True, "action": "already_exists"}
 
+        # Check if account exists by email (created via dashboard)
         user_data = data.get("user", {})
+        user_email = user_data.get("email")
+        if user_email:
+            account = db.query(Account).filter(Account.email == user_email).first()
+
+        if account:
+            # Link existing dashboard account to Freemius
+            account.freemius_user_id = int(freemius_user_id)
+            account.name = (
+                (user_data.get("first", "") + " " + user_data.get("last", "")).strip()
+                or account.name
+            )
+            db.commit()
+            return {"ok": True, "action": "linked_existing_account"}
+
+        # No account at all — create new
         limits = _get_plan_limits("free")
         account = Account(
-            email=user_data.get("email", f"freemius-{freemius_user_id}@unknown"),
+            email=user_email or f"freemius-{freemius_user_id}@unknown",
             name=(user_data.get("first", "") + " " + user_data.get("last", "")).strip(),
             plan="free",
             generations_used=0,

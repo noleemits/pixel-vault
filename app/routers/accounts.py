@@ -67,7 +67,8 @@ def register_account(body: RegisterRequest, db: Session = Depends(get_sync_db)):
     Register a new account and issue an API key.
 
     Called by the WordPress plugin on Freemius activation.
-    If email already exists and has a key, returns 409.
+    If email already has a key, returns 409.
+    If email has an account but no key (dashboard-created), issues a key.
     """
     account = db.query(Account).filter(Account.email == body.email).first()
 
@@ -75,8 +76,14 @@ def register_account(body: RegisterRequest, db: Session = Depends(get_sync_db)):
         existing_key = db.query(ApiKey).filter(ApiKey.account_id == account.id).first()
         if existing_key:
             raise HTTPException(409, "Account already registered. API key was issued on first activation.")
-
-    if not account:
+        # Dashboard-created account with no API key — link Freemius data
+        if body.freemius_user_id:
+            account.freemius_user_id = body.freemius_user_id
+        if body.freemius_plan_id:
+            account.freemius_plan_id = body.freemius_plan_id
+        if body.name:
+            account.name = body.name
+    else:
         limits = PLAN_LIMITS["free"]
         account = Account(
             email=body.email,

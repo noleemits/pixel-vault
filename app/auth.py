@@ -49,6 +49,25 @@ def verify_supabase_jwt(token: str) -> str | None:
         return None
 
 
+def _auto_provision_account(email: str, db: Session) -> "Account":
+    """Create a free-tier account for a first-time dashboard user."""
+    from app.models import Account
+    from app.routers.accounts import PLAN_LIMITS
+
+    limits = PLAN_LIMITS["free"]
+    account = Account(
+        email=email,
+        name=email.split("@")[0],
+        plan="free",
+        generations_used=0,
+        generations_limit=limits["generations_limit"],
+        sync_limit=limits["sync_limit"],
+    )
+    db.add(account)
+    db.flush()
+    return account
+
+
 def get_current_account(
     api_key: str = Security(api_key_header),
     authorization: str | None = Header(None),
@@ -72,9 +91,9 @@ def get_current_account(
         email = verify_supabase_jwt(token)
         if email:
             account = db.query(Account).filter(Account.email == email).first()
-            if account:
-                return account
-            raise HTTPException(403, "No PixelVault account for this email")
+            if not account:
+                account = _auto_provision_account(email, db)
+            return account
         raise HTTPException(403, "Invalid or expired token")
 
     # Dev mode: no key configured and none sent.
@@ -117,9 +136,9 @@ def verify_api_key(
         if email:
             from app.models import Account
             account = db.query(Account).filter(Account.email == email).first()
-            if account:
-                return
-            raise HTTPException(403, "No PixelVault account for this email")
+            if not account:
+                _auto_provision_account(email, db)
+            return
         raise HTTPException(403, "Invalid or expired token")
 
     if not settings.pixelvault_api_key:
