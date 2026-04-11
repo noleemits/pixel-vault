@@ -1,17 +1,18 @@
 """
-app/auth.py — API key authentication.
+app/auth.py — Dual authentication: API key + Supabase JWT.
 
-Supports two modes:
-  1. Per-account API keys: X-API-Key contains a key that hashes to an api_keys row.
-  2. Admin fallback: X-API-Key matches PIXELVAULT_API_KEY from .env (full access, no account).
+Supports three modes:
+  1. Per-account API keys: X-API-Key header (WordPress plugin).
+  2. Supabase JWT: Authorization: Bearer <token> (dashboard).
+  3. Admin fallback: X-API-Key matches PIXELVAULT_API_KEY from .env.
 
-If no key is configured in .env AND no per-account key matches → open access (dev mode).
+If no key configured and no token -> open access (dev mode).
 """
 
 import hashlib
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, HTTPException, Security, Header
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
@@ -26,21 +27,55 @@ def _hash_key(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def verify_supabase_jwt(token: str) -> str | None:
+    """
+    Verify a Supabase JWT and return the email.
+    Returns None if verification fails or JWT auth is disabled.
+    """
+    if not settings.supabase_jwt_secret:
+        return None
+
+    try:
+        from jose import jwt as jose_jwt
+
+        payload = jose_jwt.decode(
+            token,
+            settings.supabase_jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+        return payload.get("email")
+    except Exception:
+        return None
+
+
 def get_current_account(
     api_key: str = Security(api_key_header),
+    authorization: str | None = Header(None),
     db: Session = Depends(get_sync_db),
 ):
     """
-    Resolve the caller's Account from the API key.
+    Resolve the caller's Account from API key or Supabase JWT.
 
     Returns:
-        Account instance if a per-account key was used.
-        None if the admin key was used or dev mode (no key configured).
+        Account instance if authenticated as a user.
+        None if admin key or dev mode.
 
     Raises:
-        HTTPException 403 if the key is invalid.
+        HTTPException 403 if credentials are invalid.
     """
-    from app.models import ApiKey
+    from app.models import Account, ApiKey
+
+    # Try JWT first (dashboard).
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        email = verify_supabase_jwt(token)
+        if email:
+            account = db.query(Account).filter(Account.email == email).first()
+            if account:
+                return account
+            raise HTTPException(403, "No PixelVault account for this email")
+        raise HTTPException(403, "Invalid or expired token")
 
     # Dev mode: no key configured and none sent.
     if not settings.pixelvault_api_key and not api_key:
@@ -49,9 +84,9 @@ def get_current_account(
     if not api_key:
         raise HTTPException(403, "API key required")
 
-    # Check admin key first.
+    # Check admin key.
     if api_key == settings.pixelvault_api_key:
-        return None  # Admin — no account context.
+        return None
 
     # Check per-account key.
     key_hash = _hash_key(api_key)
@@ -60,7 +95,6 @@ def get_current_account(
     if not api_key_record:
         raise HTTPException(403, "Invalid API key")
 
-    # Update last_used.
     api_key_record.last_used = datetime.now(timezone.utc)
     db.flush()
 
@@ -69,23 +103,34 @@ def get_current_account(
 
 def verify_api_key(
     api_key: str = Security(api_key_header),
+    authorization: str | None = Header(None),
     db: Session = Depends(get_sync_db),
 ):
     """
-    Simple gate: reject if a key is required but missing/wrong.
-    Now also accepts per-account keys.
+    Simple gate: reject if credentials are required but missing/wrong.
+    Accepts API key OR Supabase JWT.
     """
+    # Try JWT first.
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        email = verify_supabase_jwt(token)
+        if email:
+            from app.models import Account
+            account = db.query(Account).filter(Account.email == email).first()
+            if account:
+                return
+            raise HTTPException(403, "No PixelVault account for this email")
+        raise HTTPException(403, "Invalid or expired token")
+
     if not settings.pixelvault_api_key:
         return  # Dev mode.
 
     if not api_key:
         raise HTTPException(403, "API key required")
 
-    # Admin key match.
     if api_key == settings.pixelvault_api_key:
         return
 
-    # Per-account key match.
     from app.models import ApiKey
     key_hash = _hash_key(api_key)
     found = db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first()

@@ -19,6 +19,7 @@ from app.services.fal_client import requires_hands, build_prompt, POSITIVE_SUFFI
 from app.services.auto_tagger import auto_tag_image
 from app.auth import get_current_account
 from app.services.plan_enforcer import check_generation_limit, increment_generation_count
+from app.services.storage import r2
 
 router = APIRouter(tags=["sites"])
 
@@ -94,6 +95,58 @@ class DeploymentOut(BaseModel):
     post_id: int | None = None
     post_title: str = ""
     local_filename: str = ""
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/sites — list all sites for the current account
+# ---------------------------------------------------------------------------
+
+@router.get("/sites")
+def list_sites(
+    db: Session = Depends(get_sync_db),
+    account=Depends(get_current_account),
+):
+    """List all sites for the current account."""
+    from app.models import Site, ImageDeployment
+    from sqlalchemy import func
+
+    if account is None:
+        # Admin: return all sites
+        sites = db.query(Site).order_by(Site.created_at.desc()).all()
+    else:
+        sites = (
+            db.query(Site)
+            .filter(Site.account_id == account.id)
+            .order_by(Site.created_at.desc())
+            .all()
+        )
+
+    result = []
+    for site in sites:
+        deployment_count = (
+            db.query(func.count(ImageDeployment.id))
+            .filter(
+                ImageDeployment.site_id == site.id,
+                ImageDeployment.is_active == True,
+            )
+            .scalar()
+        )
+        result.append(
+            {
+                "id": str(site.id),
+                "name": site.name,
+                "url": site.url,
+                "industry": site.industry,
+                "business_type": site.business_type,
+                "location": site.location,
+                "mood_tags": site.mood_tags or [],
+                "style_prefix": site.style_prefix,
+                "serve_from": site.serve_from,
+                "active_deployments": deployment_count,
+                "created_at": site.created_at.isoformat(),
+            }
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +226,7 @@ def match_images(body: MatchRequest, db: Session = Depends(get_sync_db)):
             industry=img.industry,
             style=img.style,
             confidence=round(confidence, 2),
-            preview_url=f"/api/v1/images/{img.id}/file",
+            preview_url=img.cdn_url or f"/api/v1/images/{img.id}/file",
         ))
 
     # Cap at 5.
@@ -281,10 +334,24 @@ def generate_from_prompt(body: GenerateFromPromptRequest, db: Session = Depends(
 
         for i, result in enumerate(results):
             saved = processor.save_from_bytes(result["image_bytes"], "custom", "plugin", i + 1, ratio_label)
+
+            # Upload to R2 if configured.
+            storage_key = None
+            cdn_url = None
+            if r2.enabled:
+                try:
+                    storage_key = r2.build_key(saved["filename"])
+                    cdn_url = r2.upload_file(saved["filepath"], storage_key)
+                except Exception:
+                    storage_key = None
+                    cdn_url = None
+
             from app.models import Image as ImageModel
             image = ImageModel(
                 filename=saved["filename"],
                 filepath=saved["filepath"],
+                storage_key_web=storage_key,
+                cdn_url=cdn_url,
                 industry="custom",
                 style="plugin",
                 ratio=body.ratio,

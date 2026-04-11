@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+from app.auth import get_current_account
 from app.database import get_sync_db as get_db
 from app.models import Image, Tag, image_tags
 from app.schemas import ImageOut, ImageReview
@@ -19,10 +20,12 @@ def list_images(
     tag_mode: str = Query("or", regex="^(and|or)$"),
     batch_id: int | None = None,
     search: str | None = None,
+    mine: bool = Query(False, description="Only show images owned by current account"),
     sort: str = Query("newest", regex="^(newest|oldest|name|usage)$"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    account=Depends(get_current_account),
 ):
     """
     List images with optional filters.
@@ -53,6 +56,8 @@ def list_images(
             | (func.lower(Image.industry).like(search_pattern))
             | (func.lower(Image.style).like(search_pattern))
         )
+    if mine and account is not None:
+        q = q.filter(Image.account_id == account.id)
 
     # Single tag filter (backward compat).
     if tag:
@@ -95,6 +100,8 @@ def get_image_file(image_id: str, db: Session = Depends(get_db)):
     image = db.get(Image, image_id)
     if not image:
         raise HTTPException(404, "Image not found")
+    if image.cdn_url:
+        return RedirectResponse(url=image.cdn_url, status_code=301)
     return FileResponse(image.filepath, media_type="image/jpeg")
 
 @router.patch("/images/{image_id}/review")

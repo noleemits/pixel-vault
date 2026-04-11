@@ -9,6 +9,16 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./pixelvault.db"
     storage_path: str = "./storage/images"
 
+    # Cloudflare R2 (S3-compatible object storage)
+    r2_access_key: str = ""
+    r2_secret_key: str = ""
+    r2_bucket: str = "pixelvault"
+    r2_endpoint: str = ""  # https://<account_id>.r2.cloudflarestorage.com
+    cdn_domain: str = ""   # e.g. images.pixelvault.io
+
+    # Supabase JWT auth (dashboard)
+    supabase_jwt_secret: str = ""
+
     model_config = {"env_file": ".env"}
 
 settings = Settings()
