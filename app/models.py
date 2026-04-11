@@ -59,6 +59,7 @@ class Account(Base):
     email:              Mapped[str]              = mapped_column(Text, nullable=False, unique=True)
     name:               Mapped[str]              = mapped_column(Text, nullable=False)
     plan:               Mapped[str]              = mapped_column(String(50), nullable=False, default="free")
+    role:               Mapped[str]              = mapped_column(String(20), nullable=False, default="user")
     generations_used:   Mapped[int]              = mapped_column(Integer, nullable=False, default=0)
     generations_limit:  Mapped[int]              = mapped_column(Integer, nullable=False, default=3)
     sync_limit:         Mapped[int]              = mapped_column(Integer, nullable=False, default=50)
@@ -195,6 +196,9 @@ class Image(Base):
     is_official:      Mapped[bool]               = mapped_column(Boolean, nullable=False, default=False)
     is_community:     Mapped[bool]               = mapped_column(Boolean, nullable=False, default=False)
     description:      Mapped[Optional[str]]      = mapped_column(Text)
+    community_status: Mapped[Optional[str]]      = mapped_column(String(20), default=None)
+    community_votes:  Mapped[int]                = mapped_column(Integer, nullable=False, default=0)
+    submitted_at:     Mapped[Optional[datetime]] = mapped_column(default=None)
     created_at:       Mapped[datetime]           = mapped_column(default=_utcnow)
 
     prompt:      Mapped["Prompt"]                        = relationship(back_populates="images")
@@ -202,6 +206,25 @@ class Image(Base):
     account:     Mapped[Optional["Account"]]             = relationship(back_populates="images")
     tags:        Mapped[list["Tag"]]                     = relationship(secondary=image_tags, back_populates="images")
     deployments: Mapped[list["ImageDeployment"]]         = relationship(back_populates="image", cascade="all, delete-orphan")
+    votes:       Mapped[list["CommunityVote"]]           = relationship(back_populates="image", cascade="all, delete-orphan")
+
+
+# ---------------------------------------------------------------------------
+# CommunityVote
+# ---------------------------------------------------------------------------
+
+class CommunityVote(Base):
+    __tablename__ = "community_votes"
+
+    id:         Mapped[uuid.UUID]  = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_id:   Mapped[uuid.UUID]  = mapped_column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    account_id: Mapped[uuid.UUID]  = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime]   = mapped_column(default=_utcnow)
+
+    image:   Mapped["Image"]   = relationship(back_populates="votes")
+    account: Mapped["Account"] = relationship()
+
+    __table_args__ = (UniqueConstraint("image_id", "account_id", name="uq_community_vote"),)
 
 
 # ---------------------------------------------------------------------------

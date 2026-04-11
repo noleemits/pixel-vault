@@ -65,6 +65,33 @@ class ImageOut(BaseModel):
         data["tags"] = [t.name for t in img.tags]
         return cls(**data)
 
+class CommunityImageOut(BaseModel):
+    id: UUID | int
+    filename: str
+    filepath: str
+    cdn_url: str | None = None
+    industry: str
+    style: str
+    ratio: str
+    description: str | None = None
+    tags: list[str] = []
+    account_name: str = ""
+    community_votes: int = 0
+    community_status: str | None = None
+    submitted_at: datetime | None = None
+    user_voted: bool = False
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_image(cls, img, account_name: str = "", user_voted: bool = False):
+        """Build CommunityImageOut from an Image ORM instance."""
+        data = {c.key: getattr(img, c.key) for c in img.__table__.columns}
+        data["tags"] = [t.name for t in img.tags]
+        data["account_name"] = account_name
+        data["user_voted"] = user_voted
+        return cls(**data)
+
 class ImageReview(BaseModel):
     status: str
     quality_score: int | None = None
