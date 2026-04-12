@@ -77,6 +77,16 @@ async def _run_generation(batch_id: int, prompt_text: str, industry: str, style:
             db.flush()
             auto_tag_image(db, image, prompt_text, industry)
 
+        # Free plan: images are automatically public (community).
+        if batch.account_id:
+            from app.models import Account
+            gen_account = db.get(Account, batch.account_id)
+            if gen_account and gen_account.plan == "free":
+                for img in db.query(Image).filter(Image.batch_id == batch.id).all():
+                    img.is_community = True
+                    img.community_status = "pending_review"
+                    img.submitted_at = datetime.now(timezone.utc)
+
         batch.status = "completed"
         batch.completed_at = datetime.now(timezone.utc)
         db.commit()
