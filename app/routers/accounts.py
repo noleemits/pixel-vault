@@ -39,6 +39,7 @@ class RegisterResponse(BaseModel):
 
 class AccountStatusResponse(BaseModel):
     plan: str
+    role: str = "user"
     generations_used: int
     generations_limit: int
     sync_limit: int
@@ -132,6 +133,7 @@ def account_status(
     if not account:
         return AccountStatusResponse(
             plan="admin",
+            role="admin",
             generations_used=0,
             generations_limit=999999,
             sync_limit=999999,
@@ -139,6 +141,7 @@ def account_status(
 
     return AccountStatusResponse(
         plan=account.plan,
+        role=account.role,
         generations_used=account.generations_used,
         generations_limit=account.generations_limit,
         sync_limit=account.sync_limit,
