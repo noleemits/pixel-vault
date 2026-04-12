@@ -59,6 +59,7 @@ class Account(Base):
     email:              Mapped[str]              = mapped_column(Text, nullable=False, unique=True)
     name:               Mapped[str]              = mapped_column(Text, nullable=False)
     plan:               Mapped[str]              = mapped_column(String(50), nullable=False, default="free")
+    role:               Mapped[str]              = mapped_column(String(20), nullable=False, default="user")
     generations_used:   Mapped[int]              = mapped_column(Integer, nullable=False, default=0)
     generations_limit:  Mapped[int]              = mapped_column(Integer, nullable=False, default=3)
     sync_limit:         Mapped[int]              = mapped_column(Integer, nullable=False, default=50)
