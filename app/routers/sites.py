@@ -369,6 +369,13 @@ def generate_from_prompt(body: GenerateFromPromptRequest, db: Session = Depends(
             auto_tag_image(db, image, raw_prompt, "custom")
             image_ids.append(str(image.id))
 
+        # Free plan: images are automatically public (community).
+        if account and account.plan == "free":
+            for img in db.query(ImageModel).filter(ImageModel.batch_id == batch.id).all():
+                img.is_community = True
+                img.community_status = "pending_review"
+                img.submitted_at = datetime.now(timezone.utc)
+
         batch.status = "completed"
         batch.completed_at = datetime.now(timezone.utc)
         db.commit()
