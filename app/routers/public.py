@@ -85,3 +85,44 @@ def list_public_images(
         "page": page,
         "per_page": per_page,
     }
+
+
+@router.get("/public/filters")
+def get_public_filters(db: Session = Depends(get_db)):
+    """
+    Return available filter values for the public gallery.
+
+    Only counts images where status='approved' and is_official=True,
+    so the frontend never shows empty filter options.
+    """
+    base = db.query(Image).filter(
+        Image.status == "approved", Image.is_official == True
+    )
+
+    # Industries with counts.
+    industries = (
+        base.with_entities(Image.industry, func.count(Image.id))
+        .group_by(Image.industry)
+        .order_by(func.count(Image.id).desc())
+        .all()
+    )
+
+    # Tags with counts (only tags attached to public images).
+    tag_counts = (
+        db.query(Tag.name, func.count(image_tags.c.image_id))
+        .join(image_tags)
+        .join(Image)
+        .filter(Image.status == "approved", Image.is_official == True)
+        .group_by(Tag.name)
+        .order_by(func.count(image_tags.c.image_id).desc())
+        .all()
+    )
+
+    return {
+        "industries": [
+            {"value": ind, "count": cnt} for ind, cnt in industries
+        ],
+        "tags": [
+            {"value": name, "count": cnt} for name, cnt in tag_counts
+        ],
+    }
