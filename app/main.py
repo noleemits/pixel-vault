@@ -4,9 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.database import Base, sync_engine as engine
-from app.routers import prompts, images, generation, tags, sites, accounts, webhooks, public, community, admin
+from app.routers import prompts, images, generation, tags, sites, accounts, webhooks, public, community
 from app.auth import verify_api_key
-from app.services.admin_guard import require_admin
 from app.config import settings
 import os
 
@@ -45,10 +44,6 @@ app.include_router(accounts.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(community.router, prefix="/api/v1")
-
-# Admin endpoints — require admin role.
-_admin_auth = [Depends(require_admin)]
-app.include_router(admin.router, prefix="/api/v1", dependencies=_admin_auth)
 
 os.makedirs(settings.storage_path, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
